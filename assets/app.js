@@ -205,12 +205,18 @@ function renderDemoBanner() {
 }
 
 function mountDemoBanner() {
-  if (!store.read().demoBanner) return;
   const app = document.querySelector('.app');
   if (!app) return;
+  const shown = app.querySelector('.demo-banner');
+  if (!store.read().demoBanner) {
+    // 演示过之后又做了真实查询：横幅必须跟着撤掉，
+    // 否则用户会把自己的真实结果当成「虚拟案例」。
+    if (shown) shown.remove();
+    return;
+  }
   const tb = app.querySelector('.topbar');
   if (!tb) return;
-  if (app.querySelector('.demo-banner')) return;
+  if (shown) return;
   tb.insertAdjacentHTML('afterend', renderDemoBanner());
   const reset = document.getElementById('demoResetBtn');
   if (reset) {
@@ -1323,6 +1329,24 @@ function renderSituationBoard(profile, sceneLibrary, opts) {
       <span class="bf-v">${escapeHtml(f.v || '未提供')}</span>
     </div>`).join('');
 
+  // ---- 1a. 自相矛盾的说法
+  // 一句话里同时出现「独自居住」和「和子女一起住」，引擎不替用户裁决，
+  // 但要明确说出来：否则用户以为 AI 采信的那句是自己想要的。
+  const conflicts = Array.isArray(profile.conflicts) ? profile.conflicts : [];
+  const conflictsHtml = conflicts.length ? `
+    <div class="board-conflict" role="status">
+      <p class="bc-t">您的描述里有一处前后不一致，需要先确认</p>
+      <ul class="bc-list">
+        ${conflicts.map((c) => `
+          <li class="bc-item">
+            <span class="bc-kind">${escapeHtml(c.kind || '说法')}</span>
+            <span class="bc-said">${(c.said || []).map(escapeHtml).join(' / ')}</span>
+            <span class="bc-note">${escapeHtml(c.note || '')}</span>
+          </li>`).join('')}
+      </ul>
+      <p class="bc-tip">请在上面的描述里改成您现在真实的情况，再重新读一遍。这一次我们不会替您挑一句。</p>
+    </div>` : '';
+
   // ---- 2. 生活事件
   const chips = (list, kind) => list.map((x) => `
     <button type="button" class="scene-chip ${kind === 'on' ? 'is-on' : ''}"
@@ -1402,6 +1426,7 @@ function renderSituationBoard(profile, sceneLibrary, opts) {
         家属代为填写也不等于${escapeHtml(who)}本人已确认。
       </p>
       ${noneHint}
+      ${conflictsHtml}
       <div class="card board">
         <div class="board-sec">
           <div class="board-sec-head">
