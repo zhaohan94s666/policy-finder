@@ -1135,13 +1135,124 @@ function detectScenes(text) {
   const hits = [];
   for (const scene of Object.keys(SCENE_KEYWORDS)) {
     for (const w of SCENE_KEYWORDS[scene]) {
-      if (text.includes(w)) {
+      if (hasWord(text, w) && !_negated(text, w) && !_superseded(text, w)) {
         hits.push(scene);
         break;
       }
     }
   }
   return Array.from(new Set(hits)).sort();
+}
+
+// ---- 否定 / 时态 / 程度副词 / 矛盾：与 backend/policy_engine.py 逐条对齐 ----
+
+// 程度副词：夹在关键词中间不影响意思（「压力很大」=「压力大」）
+const DEGREE_WORDS = ["特别", "非常", "比较", "越来越", "更", "很", "挺", "太", "还", "都"];
+
+// 否定词：长词在前，否则「并没有」会被「没有」截断后误判位置
+const NEGATION_WORDS = [
+  "并没有", "并不是", "并没有在", "并没有参加",
+  "没有", "不是", "不算", "不属于", "未曾", "从未", "并不", "不再",
+  "不", "没", "无",
+];
+
+const PAST_MARKERS = ["以前", "之前", "去年", "前年", "曾经", "原先", "原来", "过去", "早年"];
+const NOW_MARKERS = ["现在", "如今", "目前", "现在的", "后来", "如今已", "已经能", "已经好了", "目前已经"];
+
+const SENTENCE_BREAKS = ["。", "；", ";", "！", "!", "？", "?", "\n"];
+
+/**
+ * 关键词匹配：允许程度副词插在关键词中间。
+ * 「压力大」遇上「压力很大」、「行动不便」遇上「行动很不方便」，字面不等但意思一致。
+ */
+function hasWord(text, word) {
+  if (text.includes(word)) return true;
+  let stripped = text;
+  for (const adv of DEGREE_WORDS) {
+    if (stripped.includes(adv)) stripped = stripped.split(adv).join("\u0000");
+  }
+  let target = word;
+  for (const adv of DEGREE_WORDS) {
+    if (target.includes(adv)) target = target.split(adv).join("\u0000");
+  }
+  if (target === word) {
+    // 关键词本身不含副词：在去掉副词的文本里按「各字之间可隔着副词」匹配
+    const pattern = Array.from(word).map((ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\u0000*");
+    return new RegExp(pattern).test(stripped);
+  }
+  return stripped.includes(target);
+}
+
+/** 关键词前紧邻位置有否定词就视为不成立。只覆盖紧挨着的否定，不做整句语法分析。 */
+function _negated(text, word) {
+  let start = 0;
+  for (;;) {
+    const idx = text.indexOf(word, start);
+    if (idx === -1) return false;
+    const prefix = text.slice(Math.max(0, idx - 6), idx);
+    for (const neg of NEGATION_WORDS) {
+      const pos = prefix.lastIndexOf(neg);
+      if (pos !== -1) {
+        const tail = prefix.slice(pos + neg.length);
+        if (tail.length <= 3 && !/[，。；、！？,.;!?]/.test(tail)) return true;
+      }
+    }
+    start = idx + 1;
+  }
+}
+
+/** 关键词描述的情况是否「已经过去了」：先说过去、后说现在，才算过期。 */
+function _superseded(text, word) {
+  let start = 0;
+  for (;;) {
+    const idx = text.indexOf(word, start);
+    if (idx === -1) return false;
+    let segStart = -1;
+    for (const p of SENTENCE_BREAKS) {
+      const j = text.lastIndexOf(p, idx - 1);
+      if (j > segStart) segStart = j;
+    }
+    segStart += 1;
+    const prefix = text.slice(segStart, idx);
+    const hasPast = PAST_MARKERS.some((p) => prefix.includes(p));
+    if (hasPast) {
+      let segEnd = text.length;
+      for (const p of SENTENCE_BREAKS) {
+        const j = text.indexOf(p, idx);
+        if (j !== -1 && j < segEnd) segEnd = j;
+      }
+      const suffix = text.slice(idx, segEnd);
+      if (NOW_MARKERS.some((p) => suffix.includes(p))) return true;
+    }
+    start = idx + 1;
+  }
+}
+
+/** 挑出「两种说法不可能同时成立」的组合，不替用户裁决。 */
+function detectConflicts(text) {
+  text = text || "";
+  const found = [];
+  const both = (groupA, groupB, kind, note) => {
+    const hitA = groupA.filter((w) => text.includes(w));
+    const hitB = groupB.filter((w) => text.includes(w));
+    if (hitA.length && hitB.length) found.push({ kind, said: hitA.concat(hitB), note });
+  };
+  both(
+    ["独居", "一个人生活", "一个人住", "独自居住", "单独居住"],
+    ["和子女一起住", "跟子女一起", "和子女同住", "和家人一起住", "跟家人一起",
+      "有人陪", "有人照顾", "老伴在"],
+    "居住情况",
+    "既说独自居住，又说有人一起住或有人陪，需要确认哪一种是现在的情况。",
+  );
+  const hasLocal = /(是|属于)?本市户籍|广州户口|户口在广州|广州户籍/.test(text);
+  if (hasLocal && /户口不在广州|不是本市户籍|户籍不在广州|外地户口/.test(text)) {
+    found.push({
+      kind: "户籍情况",
+      said: ["本市户籍", "户口不在广州"],
+      note: "户籍说法前后不一致，需要确认户口到底在广州还是外地。",
+    });
+  }
+  return found;
 }
 
 function detectRelation(text, fallback) {
@@ -1211,6 +1322,8 @@ function buildProfile(opts) {
       age_approx: ageApprox,
       self_paid_amount: parseSelfPaid(text),
       family_economic: null,
+      // 自相矛盾的说法：不替用户裁决，交给界面去问。恒为数组。
+      conflicts: detectConflicts(text),
     };
   }
   beneficiaryLabel = relation || '老人';
@@ -1231,6 +1344,8 @@ function buildProfile(opts) {
     age_approx: ageApprox,
     self_paid_amount: parseSelfPaid(text),
     family_economic: null,
+    // 自相矛盾的说法：不替用户裁决，交给界面去问。恒为数组。
+    conflicts: detectConflicts(text),
   };
 }
 
