@@ -1902,6 +1902,28 @@ input:focus {
   line-height: 1.8;
 }
 
+/* 有效期依据：政策本体被延期/修改时，效力来源是另一份文件。
+   用一条左边框把「本体」与「延期依据」在视觉上分开，避免被读成同一份文件。 */
+.tc-basis {
+  margin-top: 10px;
+  padding-left: 12px;
+  border-left: 3px solid var(--trust-line);
+}
+
+.tc-basis .tc-row {
+  border-bottom: 0;
+  padding-top: 0;
+}
+
+.tc-basis .tc-link {
+  margin-top: 6px;
+}
+
+.tc-basis-date {
+  font-weight: 400;
+  color: var(--muted);
+}
+
 .tc-none {
   display: flex;
   align-items: center;
