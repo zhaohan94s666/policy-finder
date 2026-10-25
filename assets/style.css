@@ -329,6 +329,16 @@ html {
 
 /* 顶栏返回：并入标题行后是一枚紧凑胶囊，位于页面标题左侧 */
 .back-link {
+  /* 触摸目标 ≥44px（WCAG 2.1 AA 2.5.5 / 2.5.8）：
+     原先只有 padding 5px 12px + line-height 1.5，实测高度 31px（桌面 33px），
+     手指点在胶囊上下边缘以外就点不中。这里用 inline-flex + min-height 把
+     可点区域撑到 44px，宽度已由文案 + padding 天然超过 44，不受影响。
+     min-width 一并设上，避免以后改文案变成窄条。 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
   flex: none;
   align-self: center;
   color: var(--brand-dark);
@@ -365,6 +375,7 @@ html {
    副标题在窄屏隐藏，桌面保留；页面身份由 h1 承担。 */
 @media (max-width: 559px) {
   .topbar .sub { display: none; }
+  /* 只收左右内边距；上下 min-height 44px 由基础规则保证，窄屏也不能缩回去 */
   .back-link { padding: 4px 10px; }
 }
 

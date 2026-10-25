@@ -833,8 +833,8 @@ const POLICY_DB = {
 "document": "关于延长《广州市长期护理保险试行办法》有效期的通知",
 "document_no": "穗医保规字〔2026〕1号",
 "publisher": "广州市医疗保障局",
-"published_date": "2026-10-12",
-"official_url": "https://www.gz.gov.cn/gzybj/gkmlpt/content/9/9501/post_9501123.html"
+"published_date": "2026-09-14",
+"official_url": "https://www.gz.gov.cn/gzybj/gkmlpt/content/11/11003/post_11003372.html"
 }
 }
 },
