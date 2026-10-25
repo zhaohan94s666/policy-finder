@@ -1783,14 +1783,8 @@ function renderResultCards(data, opts) {
       ? '<span class="cite-state is-pending">来源待核验</span>'
       : '<span class="cite-state is-verified">✓ 已核验</span>';
     const docNo = String(r.source_document_no || '').trim();
-    // 有文号就展示文号（库里真实字段），没有就退回来源状态；
-    // 两种都带上右侧的箭头，表示这一行点进去能看到完整来源（与卡尾入口同一去向）。
-    const citeLine = `<p class="rc-cite-line">
-          <span class="rc-cite-k">政策依据</span>
-          <span class="rc-cite-v">${docNo ? escapeHtml(docNo) : sourceState}</span>
-          ${docNo ? `<span class="rc-cite-state">${sourceState}</span>` : ''}
-          <span class="rc-cite-arrow" aria-hidden="true">›</span>
-        </p>`;
+    // 来源状态行：有文号展示「文号 + 核验态」，没有就只展示核验态——
+    // 此前无文号时写「政策依据：见详情」，读起来像一条指令而不是状态。
 
     // 导航语义由卡尾的独立 <a> 承担（原生可聚焦、可 Enter、中键可新开）；
     // 整卡不再伪装成 button——button 角色里嵌 summary/按钮是无效 ARIA 嵌套。
@@ -1846,7 +1840,9 @@ function renderResultCards(data, opts) {
         ${renderThresholdNote(r.threshold_signal)}
 
         <div class="priority-footer">
-          <p class="rc-cite-line">${docNo ? `政策依据：${escapeHtml(docNo)}` : '政策依据：见详情'}</p>
+          <p class="rc-cite-line"><span class="rc-cite-k">政策依据</span>${docNo
+            ? `<span class="rc-cite-v">${escapeHtml(docNo)}</span>${sourceState}`
+            : sourceState}</p>
           <a class="evidence-link" href="policy.html?id=${encodeURIComponent(r.policy_id)}">为什么推荐　›</a>
         </div>
 
@@ -1857,7 +1853,7 @@ function renderResultCards(data, opts) {
         </details>
 
         <button type="button" class="ev-toggle" data-ev-toggle="${escapeHtml(r.policy_id)}"
-                aria-expanded="false">为什么推荐？看依据</button>
+                aria-expanded="false">为什么推荐？展开依据</button>
         <div class="ev-slot" data-ev-slot="${escapeHtml(r.policy_id)}" hidden></div>
 
         <a class="result-foot" href="policy.html?id=${encodeURIComponent(r.policy_id)}">查看详情与办理方式 <span class="arrow">→</span></a>
@@ -2149,7 +2145,7 @@ function bindEvidenceToggles(resultsById) {
         slot.hidden = true;
         slot.innerHTML = '';
         btn.setAttribute('aria-expanded', 'false');
-        btn.textContent = '为什么推荐？看依据';
+        btn.textContent = '为什么推荐？展开依据';
         return;
       }
       const r = (resultsById || {})[id];
@@ -2229,15 +2225,18 @@ function renderTopbar(title, parentHref, sub) {
     // href 保留：既是无 JS / 中键新窗口的兜底，也让父页面关系可被查看
     back = `<a class="back-link" href="${escapeHtml(parentHref)}" data-back="1">← 返回</a>`;
   }
+  // 返回并入标题行：原先返回独占一行，加上流程条、关系条之后，
+  // 详情页首屏近 300px 都是页面框架；合并后顶栏矮一行，
+  // 且顶栏已改为吸顶，长页滚到一半「← 返回」仍在手边。
   el.innerHTML = `
-    <div class="brand-row">
-      <div>
+    <div class="brand-row${back ? ' has-back' : ''}">
+      ${back}
+      <div class="brand-heading">
         <h1>${escapeHtml(title)}</h1>
         <div class="sub">政策找人 · AI赋能公共服务权益发现</div>
       </div>
       ${tagCol}
-    </div>
-    <div style="margin-top:10px">${back}</div>`;
+    </div>`;
 
   // 登记本页父页面（返回时按它跳转，不看浏览器历史）
   registerNavParent(parentHref);

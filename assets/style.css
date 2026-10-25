@@ -173,12 +173,22 @@ body {
    顶部品牌条：温暖浅色 + 绿色标识，替代原来的深绿渐变块
    ================================================================ */
 .topbar {
-  position: relative;
+  /* 吸顶：长页（发现结果 / 政策依据）向下滚动后，「← 返回」仍在手边——
+     详情页不挂底部导航，返回此前只能靠滚回顶部或浏览器手势。 */
+  position: sticky;
+  top: 0;
+  z-index: 40;
   overflow: hidden;
   /* 原型的顶栏是纸白，不铺色 —— 保持头部清爽，让绿色只出现在信息上 */
   background: linear-gradient(180deg, var(--cream) 0%, var(--brand-wash) 100%);
   border-bottom: 1px solid var(--brand-line);
-  padding: calc(16px + env(safe-area-inset-top)) 20px 18px;
+  padding: calc(12px + env(safe-area-inset-top)) 20px 12px;
+}
+
+/* 吸顶后正文被垫高约两行：锚点定位统一让出顶栏高度，
+   避免 ?focus=scene 这类回跳定位被顶栏盖住目标区块的第一行。 */
+html {
+  scroll-padding-top: 84px;
 }
 
 /* 右上角淡绿光晕 + 左下角一点暖黄，两团很淡的色让顶部不生硬 */
@@ -291,11 +301,45 @@ body {
   flex: none;
 }
 
+/* 顶栏返回：并入标题行后是一枚紧凑胶囊，位于页面标题左侧 */
 .back-link {
+  flex: none;
+  align-self: center;
   color: var(--brand-dark);
   text-decoration: none;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 5px 12px;
+  line-height: 1.5;
+}
+
+/* 有返回键的页（renderTopbar 渲染）：返回靠左、标题随后、标签贴右 */
+.brand-row.has-back {
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.brand-row.has-back .tag-col {
+  margin-left: auto;
+}
+
+.topbar .brand-heading {
+  min-width: 0;
+}
+
+.back-link {
+  white-space: nowrap;
+}
+
+/* 390px 顶栏宽度有限：返回胶囊 + 页面标题 + 右侧标签之外，
+   再放一行「政策找人 · AI赋能…」副标题只会三行折行——
+   副标题在窄屏隐藏，桌面保留；页面身份由 h1 承担。 */
+@media (max-width: 559px) {
+  .topbar .sub { display: none; }
+  .back-link { padding: 4px 10px; }
 }
 
 /* ================================================================
@@ -374,7 +418,8 @@ body {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-xl);
-  padding: 24px 20px 22px;
+  /* 首屏减负：内边距收紧一档，844px 视口下三张入口卡能露出第一张的完整标题 */
+  padding: 20px 18px 18px;
   margin: var(--sp) var(--sp) 0;
   box-shadow: var(--shadow);
 }
@@ -404,7 +449,7 @@ body {
 }
 
 .hero-title {
-  margin: 14px 0 0;
+  margin: 10px 0 0;
   font-size: 34px;
   font-weight: 800;
   line-height: 1.2;
@@ -413,10 +458,10 @@ body {
 }
 
 .hero-sub {
-  margin: 10px 0 0;
-  font-size: 17px;
+  margin: 8px 0 0;
+  font-size: 16px;
   font-weight: 600;
-  line-height: 1.65;
+  line-height: 1.6;
   color: var(--ink);
 }
 
@@ -908,6 +953,29 @@ input:focus {
   box-shadow: var(--ring);
 }
 
+/* 键盘焦点态补全：底部导航 / 详情分段 / 折叠开关 / 表态项 / 各类行式控件
+   之前只有部分有焦点环，键盘 Tab 走到一半会「看不到自己在哪」。 */
+.tb-item:focus-visible,
+.dtab:focus-visible,
+.more-toggle:focus-visible,
+.seg:focus-visible,
+.alt-toggle:focus-visible,
+.fs-opt:focus-visible,
+.mine-row:focus-visible,
+.mine-svc-item:focus-visible,
+.case-btn:focus-visible,
+.demo-entry:focus-visible,
+.choice:focus-visible,
+.ph-back:focus-visible,
+.back-link:focus-visible,
+.sr-del:focus-visible,
+.fam-cell:focus-visible,
+.a-dock:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: 8px;
+}
+
 .btn:disabled {
   background: var(--brand-line);
   cursor: not-allowed;
@@ -997,13 +1065,17 @@ input:focus {
    ================================================================ */
 .axes {
   display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
+  /* 两个维度横排、带维度名：竖排堆叠时（尤其卡片右上角）会被扫读成
+     两枚并列的「通过」徽章——这正是当初要避免的混淆形态。
+     横排 + 维度名让「匹配」与「来源」读成一句话里的两个从句。 */
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
 }
 
 .result-badges .axes {
-  align-items: flex-end;
+  justify-content: flex-end;
 }
 
 .axis {
@@ -1149,7 +1221,7 @@ input:focus {
   align-items: flex-end;
   gap: 5px;
   flex: none;
-  max-width: 42%;
+  max-width: 58%;
   text-align: right;
 }
 
@@ -1619,7 +1691,8 @@ input:focus {
 .tc-link {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 12px;
   min-height: 48px;
   margin-top: 10px;
   padding: 10px 12px;
@@ -1630,8 +1703,28 @@ input:focus {
   font-size: 13.5px;
   font-weight: 600;
   text-decoration: none;
-  word-break: break-all;
   line-height: 1.6;
+}
+
+/* 官方原文链接：左侧固定短语「查看官方原文」，右侧只留域名与截断路径——
+   此前长 URL 整串裸排、从单词中间断行（实测「conten t/9/9770」），
+   既难读也不像可点的链接；完整地址仍由浏览器状态栏与 href 承载。 */
+.tc-link > span:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.tc-link .tc-link-url {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+  font-size: 12px;
+  opacity: 0.82;
 }
 
 .tc-link:focus-visible {
@@ -1699,6 +1792,17 @@ input:focus {
   color: var(--muted);
   font-size: 14.5px;
 }
+
+/* 详情页加载骨架：文字提示 + 三段占位，
+   .skeleton 的 shimmer 已被全局 prefers-reduced-motion 规则关停。 */
+.loading .sk-line {
+  display: block;
+  height: 14px;
+  margin: 0 auto 10px;
+  border-radius: 7px;
+}
+.loading .sk-line.b { width: 78%; }
+.loading .sk-line.c { width: 56%; margin-bottom: 0; }
 
 .skeleton {
   background: linear-gradient(90deg, var(--skeleton) 25%, var(--skeleton-shine) 37%, var(--skeleton) 63%);
@@ -1803,8 +1907,16 @@ input:focus {
   gap: 6px;
   font-size: 12px;
   color: var(--muted);
-  white-space: nowrap;
+  /* 步骤标签是三字短句（帮谁查/定关系/说情况），正常一行放得下；
+     这里仍允许换行兜底——6 字长标签在 390px 下会按字符断行出现单字悬挂
+     （实测「确认家庭关系」曾被裁掉一半，后面还拖着半根连线）。 */
+  flex: 1 1 0;
   min-width: 0;
+}
+
+.step .t {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .step .n {
@@ -1846,7 +1958,10 @@ input:focus {
 }
 
 .step-line {
-  flex: 1;
+  /* 连线只负责「把步骤隔开」：给固定小宽度。
+     flex:1 会跟步骤格平分空间，390px 下每格只剩几十像素，
+     步骤文字被挤成三行竖排（实测）。 */
+  flex: 0 0 16px;
   height: 1.5px;
   background: var(--line);
   min-width: 8px;
@@ -3223,25 +3338,31 @@ input:focus {
 /* ================================================================
    证据链
    ================================================================ */
+/* 卡内「展开核验依据」：与卡尾「查看详情」和来源区的「为什么推荐 ›」是三个动作，
+   这里只承担「在列表里就地展开证据链」，不再画成第二主角的大按钮——
+   之前它与上方「为什么推荐 ›」同字样、又画成通栏按钮，三个动作读起来像同一个。 */
 .ev-toggle {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
-  margin-top: 12px;
-  padding: 9px 12px;
+  margin-top: 2px;
+  padding: 6px 2px;
   min-height: 48px;
   box-sizing: border-box;
+  border: 0;
   border-radius: var(--radius-sm);
-  border: 1px dashed var(--brand-line);
-  background: var(--brand-wash);
-  color: var(--brand-dark);
+  background: transparent;
+  color: var(--brand-mid);
   font-size: 13px;
   font-weight: 700;
   font-family: inherit;
+  text-align: left;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: background 0.18s ease;
 }
 
-.ev-toggle:hover { background: var(--brand-soft); }
+.ev-toggle:hover { background: var(--brand-wash); }
 .ev-toggle:focus-visible { outline: none; box-shadow: var(--ring); }
 
 .evidence {
@@ -5148,6 +5269,10 @@ input:focus {
 @media (max-width: 400px) {
   .dhead { grid-template-columns: 1fr; }
   .dhead-side { max-width: 220px; }
+  /* 390px：步骤格可用宽度最小的一档，字号与圆点同步收一档 */
+  .steps-bar { gap: 4px; padding: 9px 10px; }
+  .step { font-size: 11.5px; gap: 5px; }
+  .step .n { width: 18px; height: 18px; font-size: 10.5px; }
 }
 /* ---- 结果页页头（匹配完成后出现的「匹配结果」） ---- */
 .page-head {
@@ -5816,8 +5941,8 @@ body.has-tabbar .app.has-dock {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-top: 16px;
-  padding-top: 13px;
+  margin-top: 12px;
+  padding-top: 11px;
   border-top: 1px solid var(--line);
 }
 .priority-footer .rc-cite-line {
@@ -6157,7 +6282,7 @@ body.has-tabbar .app.has-dock {
   }
 
   /* 顶部品牌条：左右内边距跟着版心走，不再贴边 20px */
-  .topbar { padding: calc(20px + env(safe-area-inset-top)) 40px 20px; }
+  .topbar { padding: calc(16px + env(safe-area-inset-top)) 40px 14px; }
 
   /* 首屏主视觉：标题在左、说明与入口提示在右，一行看完 */
   .hero {
@@ -6192,12 +6317,13 @@ body.has-tabbar .app.has-dock {
     width: auto;
   }
 
-  /* 左栏只放标题与「一线」母题：母题给自己一行，不折行 */
+  /* 左栏只放标题与「一线」母题：母题居中放在标题下方，
+     宽屏下不再出现「标题在上、母题贴底、中间一片空」的断档。 */
   .hero-title { grid-column: 1; grid-row: 1; }
   .hero-thread {
     grid-column: 1;
     grid-row: 2;
-    align-self: end;
+    align-self: center;
     margin-top: 20px;
   }
   /* 母题在宽屏左栏里整行展示：两端不再各自限 46%，
@@ -6361,6 +6487,12 @@ body.has-tabbar .app.has-dock {
   /* 详情页标签栏在宽屏下四个标签铺满整行，不缩在左侧成一小段 */
   .dtabs { display: flex; }
   .dtabs .dtab { flex: 1 1 0; justify-content: center; }
+
+  /* 详情页头右侧「匹配给」小卡：116px 在桌面端会把标签竖排成
+     「匹/配/给」——加宽一档并让标签与姓名上下排。 */
+  .dhead { grid-template-columns: minmax(0, 1fr) 150px; }
+  .dhead-side .ds-top { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .dhead-side .ds-v { white-space: nowrap; }
 
   .result-card { padding: 20px 22px; }
   .result-name { font-size: 18px; }

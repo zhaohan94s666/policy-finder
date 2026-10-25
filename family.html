@@ -11,13 +11,15 @@
 <div class="app">
   <div class="topbar"></div>
 
-  <!-- 三步流程：当前步骤高亮 -->
+  <!-- 三步流程：当前步骤高亮。
+       标签用三字短句：6 字长标签在 390px 下只剩几像素余量，
+       字体回退或缩放一变就会按字符断行出现单字悬挂。 -->
   <div class="steps-bar" id="stepsBar" aria-label="查询流程进度">
-    <div class="step" data-step="1"><span class="n">1</span><span class="t">选择帮助对象</span></div>
+    <div class="step" data-step="1"><span class="n">1</span><span class="t">帮谁查</span></div>
     <span class="step-line" aria-hidden="true"></span>
-    <div class="step" data-step="2"><span class="n">2</span><span class="t">确认家庭关系</span></div>
+    <div class="step" data-step="2"><span class="n">2</span><span class="t">定关系</span></div>
     <span class="step-line" aria-hidden="true"></span>
-    <div class="step" data-step="3"><span class="n">3</span><span class="t">描述生活变化</span></div>
+    <div class="step" data-step="3"><span class="n">3</span><span class="t">说情况</span></div>
   </div>
 
   <div class="notice">
@@ -105,7 +107,7 @@
   </div>
 
   <div class="footnote">
-    第一步 选择帮助对象 → 第二步 确认家庭关系 → 第三步 描述生活变化
+    第一步 帮谁查 → 第二步 定关系 → 第三步 说情况
   </div>
 </div>
 
@@ -173,7 +175,7 @@
     tip.textContent = '选择祖辈、配偶或其他需要帮助的长辈。';
   }
   document.querySelector('#stepsBar .step[data-step="1"] .t').textContent =
-    entry === 'parents' ? '选择帮助对象' : '选择长辈';
+    entry === 'parents' ? '帮谁查' : '选长辈';
 
   function bindGrid(gridId, onPick) {
     // 受益人可能分布在主区与折叠区两个容器里，这里按 data-kind 统一绑定

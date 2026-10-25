@@ -12,7 +12,14 @@
 <div class="app">
   <div class="topbar"></div>
   <div id="content">
-    <div class="loading">正在加载政策依据…</div>
+    <!-- 加载骨架：与 .skeleton 共用 shimmer（prefers-reduced-motion 下自动关停），
+         替换原先只有一行小字的空档，滚动位置跳变更小。 -->
+    <div class="loading" role="status" aria-live="polite">
+      正在加载政策依据……
+      <span class="sk-line skeleton" style="width:64%"></span>
+      <span class="sk-line skeleton b" style="width:52%"></span>
+      <span class="sk-line skeleton c" style="width:40%"></span>
+    </div>
   </div>
   <div class="footnote">
     政策内容以主管部门公开发布的文件为准。页面仅提示可能相关的权益，不代表已符合资格。
@@ -417,8 +424,21 @@
 
     const url = clean(src.official_url);
     const linkHtml = url
-      ? `<a class="tc-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">
-           <span>🔗</span><span>${escapeHtml(url)}</span></a>`
+      ? (() => {
+          // 展示域名 + 截断路径，完整地址在 href（浏览器状态栏 / 长按可复制）。
+          // 此前整串 URL 裸排，从单词中间断行，既难读也不像链接。
+          let host = url;
+          let path = '';
+          try {
+            const u = new URL(url);
+            host = u.host;
+            path = u.pathname + u.search;
+          } catch (e) { /* 非 URL 原样兜底展示 */ }
+          const shortPath = path.length > 24 ? path.slice(0, 24) + '…' : path;
+          return `<a class="tc-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">
+             <span>查看官方原文<span class="tc-link-url">${escapeHtml(host + shortPath)}</span></span>
+             <span aria-hidden="true">↗</span></a>`;
+        })()
       : `<div class="tc-none"><span>⚠</span>
            <span>官方链接：尚未核到一手文件来源，暂不提供链接，避免指向错误页面。</span></div>`;
 
