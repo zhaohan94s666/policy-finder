@@ -692,6 +692,30 @@ function renderProfileCard(profile, opts) {
  * 结果页「发现了哪些生活场景」。
  * 类别名与服务类型全部取自结果里真实出现的字段，不做任何改写或补写。
  */
+/* P1-1 服务分类线性图标（v2，过程见 docs/design-process/）：
+   养=叶+托举（社区照护） 保=盾+勾（保障落地） 医=圆+十字（医疗） 健=心+脉搏（健康）。
+   统一 24 viewBox / 1.7 描边 / 圆角端点，currentColor 随上下文着色。 */
+const CATEGORY_ICONS = {
+  '养老服务': '<path d="M12 3.5C14.6 5.4 16 7.6 16 9.8a4 4 0 0 1-8 0C8 7.6 9.4 5.4 12 3.5Z"/><path d="M12 7.2v3"/><path d="M12 13.8v2.1"/><path d="M5.2 20.2c2.2-2.5 4.4-3.7 6.8-3.7s4.6 1.2 6.8 3.7"/>',
+  '养老保障': '<path d="M12 3.2l7 2.5v5.5c0 4.2-2.8 7.5-7 9.6-4.2-2.1-7-5.4-7-9.6V5.7Z"/><path d="M9 11.8l2.2 2.2 4-4.2"/>',
+  '医疗保障': '<circle cx="12" cy="12" r="8.4"/><path d="M12 8.2v7.6M8.2 12h7.6"/>',
+  '健康服务': '<path d="M12 20.2C7.2 17 4 13.9 4 10.4 4 7.9 6 6 8.4 6c1.5 0 2.8.7 3.6 1.9C12.8 6.7 14.1 6 15.6 6 18 6 20 7.9 20 10.4c0 3.5-3.2 6.6-8 9.8Z"/><path d="M7 11.6h2.2l1.2-2.1 1.9 3.8 1.2-1.7h3.5"/>',
+};
+
+/** 品牌母题「一线」的叶子端点：线索端=空心叶，权益端=实心叶 */
+const LEAF_OUTLINE = '<path d="M12 4.2c3.4 2.4 5.1 5.1 5.1 7.9a5.1 5.1 0 0 1-10.2 0c0-2.8 1.7-5.5 5.1-7.9Z"/><path d="M12 8.4v6.8"/>';
+const LEAF_SOLID = '<path d="M12 4.2c3.4 2.4 5.1 5.1 5.1 7.9a5.1 5.1 0 0 1-10.2 0c0-2.8 1.7-5.5 5.1-7.9Z" fill="currentColor" stroke="none"/>';
+
+function svgIcon(paths, cls) {
+  return '<svg class="' + (cls || '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    + 'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
+}
+
+/** 分类线性图标：数据里没有的类别退回空心叶 */
+function categoryIcon(name, cls) {
+  return svgIcon(CATEGORY_ICONS[name] || LEAF_OUTLINE, 'cat-ic ' + (cls || ''));
+}
+
 /** 类别角标：同一首字的不同类别要有区分，映射不到时退回首字 */
 const SCENE_GLYPH = {
   '养老服务': '养',
@@ -1696,6 +1720,7 @@ function renderResultCards(data, opts) {
 
   const oneCard = (r, opts) => {
     const meta = [r.category, r.service_type, r.region].filter(Boolean).map(escapeHtml).join(' · ');
+    const catIconHtml = r.category ? categoryIcon(r.category, 'cat-ic-meta') : '';
 
     // 第一眼三件事之①：这条权益是什么。service_note 是库里已有的服务简介，
     // 只做两行截断，完整表述仍在详情页「这是什么？」里，不丢信息。
@@ -1804,11 +1829,11 @@ function renderResultCards(data, opts) {
       : (condFirst ? `还需确认：${escapeHtml(condFirst.label)}` : '');
     return `
       <article class="result-card${isLeadCard ? ' has-tier is-lead' : ''}" data-id="${escapeHtml(r.policy_id)}">
-        ${isLeadCard ? '<span class="rc-tier">推荐度高</span>' : ''}
+        ${isLeadCard ? '<span class="rc-tier">' + svgIcon(LEAF_SOLID, 'rc-tier-leaf') + '推荐度高 · 建议先看这一项</span>' : ''}
         <div class="result-head">
           <div class="result-head-main">
             <h3 class="result-name">${escapeHtml(r.policy_name)}</h3>
-            <p class="result-meta">${meta}</p>
+            <p class="result-meta">${catIconHtml}${meta}</p>
           </div>
           <div class="result-badges">${statusBadge(r.status, r.source_pending)}</div>
         </div>
@@ -1817,7 +1842,7 @@ function renderResultCards(data, opts) {
 
         <div class="rc-whofit">
           <span class="rc-who"><span class="rc-who-k">推荐给</span>${escapeHtml(who)}</span>
-          <span class="rc-fit"><span class="rc-fit-k">符合度</span><b class="rc-fit-v">${pct}%</b></span>
+          <span class="rc-fit" title="同批结果内的相对参考分，不是资格概率"><span class="rc-fit-k">符合度</span><b class="rc-fit-v">${pct}%</b></span>
         </div>
 
         <!-- 关联理由：卡面只一句，其余理由折叠在「另外 N 条理由」里，一条都不丢 -->
@@ -1972,12 +1997,13 @@ function renderResultCards(data, opts) {
     if (!c) return;
     catMap.set(c, (catMap.get(c) || 0) + 1);
   });
-  const catTop = Array.from(catMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3);
+  // P2-1：分类计数必须完整覆盖全部条目（此前 slice(0,3) 会漏掉第 4 类，
+  // 出现 6+2+1=9 ≠ 10 的对不上账）。类别多于 4 个时才收敛到前 3 + 其余。
+  const catAll = Array.from(catMap.entries()).sort((a, b) => b[1] - a[1]);
+  const catTop = catAll.length <= 4 ? catAll : catAll.slice(0, 3);
   const catCounts = catTop.length >= 2
     ? `<div class="disc-counts">${catTop.map(([name, n]) => `
-        <div class="disc-count"><strong>${n}</strong><span>${escapeHtml(name)}</span></div>`).join('')}</div>`
+        <div class="disc-count">${categoryIcon(name)}<strong>${n}</strong><span>${escapeHtml(name)}</span></div>`).join('')}</div>`
     : '';
   // 导语标题同样避开原型的通用文案，直接报这次真实找到的数量与重点项数。
   const introTitle = focusCount
@@ -1985,7 +2011,7 @@ function renderResultCards(data, opts) {
     : `找到 ${list.length} 项可能相关的服务`;
   const discIntro = `
     <section class="disc-intro">
-      <div class="disc-kicker"><span class="spark" aria-hidden="true">✦</span>家庭权益发现</div>
+      <div class="disc-kicker">${svgIcon(LEAF_SOLID, 'spark-leaf')}家庭权益发现</div>
       <h2>${escapeHtml(introTitle)}</h2>
       <p>根据您填写的情况整理。以下为初步线索，不代表已经符合申请资格。</p>
       ${catCounts}
