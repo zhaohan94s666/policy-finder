@@ -7,7 +7,9 @@
   <meta name="description" content="用一句话描述家人的生活变化，核对 AI 的理解，发现可能遗漏的公共服务权益。">
   <title>发现 · 政策找人</title>
   <link rel="stylesheet" href="assets/style.css">
-</head>
+  <script src="data/policies.js"></script>
+<script src="assets/pf-service-v3-activation.js"></script>
+<link rel="stylesheet" href="assets/structured-result.css"><script src="assets/query-fields.js"></script><script src="assets/structured-result.js"></script><link rel="stylesheet" href="assets/navigation.css"><script src="assets/navigation-policy.js"></script><link rel="stylesheet" href="assets/result-v1.css"><script src="assets/result-presentation.js"></script><script src="assets/policy-actions.js"></script><script src="assets/followup-service.js"></script><script src="assets/policy-batch.js"></script><script src="assets/semantic-result.js"></script><link rel="stylesheet" href="assets/ui-foundation.css"></head>
 <body>
 <div class="app">
   <div class="topbar"></div>
@@ -58,16 +60,17 @@
   </div>
 </div>
 
-  <script src="data/policies.js"></script>
-<script src="assets/app.js"></script>
+<script src="assets/app.js"></script><script src="assets/followup-client.js"></script><script src="assets/query-snapshot.js"></script><script src="assets/tcb-ui.js"></script><script src="assets/pf-ns.js"></script><script src="assets/pf-services.js"></script>
 <script>
   // 不再在这里写死「第 N 步」：步骤文案由 mountFlow 统一写入顶栏徽章
-  renderTopbar('发现', null);
-  mountTabbar('discover');
-  mountDemoBanner();
-  mountDemoProgress(1);
-  mountFlow(1);
-  mountRelationStrip();
+  renderTopbar(PFStructuredResult.active ? '政策匹配结果' : '发现', PFQuerySnapshot.id?'query-history.html':null);
+  mountBottomNav();
+  if (!PFQuerySnapshot.id) {
+    mountDemoBanner();
+    mountDemoProgress(1);
+    mountFlow(1);
+    mountRelationStrip();
+  }
 
   const session = store.read();
   // 从详情页「返回调整」带回来的政策 id（读完即从地址栏移除）
@@ -143,7 +146,7 @@
   });
 
   // 演示模式首次进入：文本已自动填入，但不自动跑，保留手动点击展示输入→分析→结果
-  if (session.demo) store.write({ demo: false });
+  if (!PFQuerySnapshot.id && session.demo) store.write({ demo: false });
   /**
    * 匹配并渲染。
    * opts.restore        {key, value, viewportY} 重渲染后把被点击的按钮放回原视口位置
@@ -152,6 +155,8 @@
    */
   async function runMatch(opts) {
     opts = opts || {};
+    try { if (PFQuerySnapshot.id || await PFQuerySnapshot.legacyGate()) return; }
+    catch (error) { area.textContent = error.message; return; }
     // 每次发起匹配先领序号，且必须在任何 await 之前——
     // 两次点击在同一轮事件里连着触发时，晚到的旧结果要靠它认出自己已过期。
     const mySeq = beginMatchRequest();
@@ -217,7 +222,7 @@
     if (!isLatestMatchRequest(mySeq)) return;
     if (!isRefresh) updateAiFlow(4);
 
-    store.write({ text: text, profile: data.profile, lastQuery: 'family', demo: false, demoBanner: false });
+    store.write({ text: text, profile: PFStructuredResult.retain(data.profile, saved.profile), lastQuery: 'family', demo: false, demoBanner: false });
     // 演示横幅是按页面加载时挂上去的，清掉标记后要重新对一次，
     // 否则它会一直留在页面上，把真实结果说成虚拟案例。
     if (typeof mountDemoBanner === 'function') mountDemoBanner();
@@ -228,13 +233,10 @@
 
     setResultHead(true);
 
-    area.innerHTML =
-      renderSituationBoard(data.profile, data.scene_library, {
-        title: '第二步：确认 AI 的理解对不对',
-      }) +
-      renderResultCards(data, {
-        heading: '第三步：AI 发现 ' + (data.results || []).length + ' 项可能相关的公共服务权益',
-      });
+    await PFResultPresentation.prepare(data);
+    if (!isLatestMatchRequest(mySeq)) return;
+    area.innerHTML = PFResultPresentation.render(data);
+    PFSemanticResult.mount(area, PFStructuredResult.retain(data.profile, saved.profile));
 
     bindAll(data);
 
@@ -291,7 +293,7 @@
         saveListPosition(card.dataset.id);
         // svc 参数来自首页「政策解读 / 办理指引」intent，详情页据此定位区块；
         // 整卡导航与卡尾 <a> 必须行为一致，不能一个带一个丢
-        location.href = 'policy.html?id=' + encodeURIComponent(card.dataset.id) + (_svcParam ? '&svc=' + _svcParam : '');
+        location.href = PFNavigation.withParams(card.querySelector('.result-foot').href, {svc: _svcParam || null});
       };
       // 卡内有真实控件（折叠 summary / 理由展开 / 证据链按钮 / 详情链接）：
       // 点它们时事件会冒泡到整卡，这里必须让位，否则折叠区在结果页打不开。
@@ -434,7 +436,10 @@
   // 已输入过则自动跑一次，方便从详情页返回。
   // restorePosition 只在真的有返回记录时才恢复滚动；
   // 带 focus 参数时（从详情页「返回调整」过来）优先按区块定位。
-  if (session.text && !session.demo) {
+  if (PFQuerySnapshot.id) {
+    PFQuerySnapshot.open(area, 'family');
+    addEventListener('pageshow', event => { if (event.persisted) PFQuerySnapshot.open(area, 'family'); });
+  } else if (session.text && !session.demo) {
     const hinted = !!query('focus');
     const opt = { restorePosition: !hinted, scrollToResult: !hinted };
     runMatch(opt).then(() => {
@@ -482,5 +487,6 @@
     });
   }
 </script>
+<script src="assets/pf-service-v3-page.js"></script>
 </body>
 </html>

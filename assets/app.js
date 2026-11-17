@@ -102,6 +102,7 @@ const store = {
 
 /** 当前生效的查询模式：'self'（本人）或 'family'（家庭协助）。 */
 function activeQueryMode() {
+  if (window.PFQuerySnapshot?.current) return PFQuerySnapshot.current.mode;
   const s = store.read();
   if (s.lastQuery === 'self' || s.lastQuery === 'family') return s.lastQuery;
   if (s.selfText && !s.text) return 'self';
@@ -117,6 +118,7 @@ function activeQueryMode() {
  * 绝不静默换数据。
  */
 function activeProfile() {
+  if (window.PFQuerySnapshot?.current) return PFQuerySnapshot.current.result?.profile || null;
   const s = store.read();
   const p = activeQueryMode() === 'self' ? s.selfProfile : s.profile;
   if (!p || (typeof p === 'object' && Object.keys(p).length === 0)) return null;

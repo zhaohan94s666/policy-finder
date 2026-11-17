@@ -8,10 +8,13 @@
   <title>少跑腿计划 · 政策找人</title>
   <link rel="stylesheet" href="assets/tcb.css">
 <link rel="stylesheet" href="assets/pf-services-tcb.css">
-</head>
+  <script src="data/policies.js"></script>
+<script src="assets/pf-service-v3-activation.js"></script>
+<link rel="stylesheet" href="assets/navigation.css"><script src="assets/navigation-policy.js"></script><link rel="stylesheet" href="assets/ui-foundation.css"></head>
 <body>
 <div class="app">
   <div class="topbar"></div>
+  <div class="vf-actions"><a class="vf-btn is-primary" href="follow-up.html?view=list&amp;from=plan.html">从本次查询创建少跑腿计划</a><a class="vf-btn" href="follow-up.html?view=plans">打开已有计划</a></div>
 
   <section class="section">
     <p class="vf-ov-line" id="plSum" style="margin:0 0 10px;"></p>
@@ -85,7 +88,6 @@
   </div>
 </div>
 
-  <script src="data/policies.js"></script>
 <script src="assets/app.js"></script>
 <script src="assets/tcb-ui.js"></script>
 <script src="assets/pf-ns.js"></script>
@@ -97,7 +99,7 @@
   const planParentLabel = planParent === 'verify-list.html'
     ? '待核实清单' : (planParent === 'index.html' ? '首页' : '我的服务');
   renderTopbar('少跑腿计划', planParent, planParentLabel);
-  mountBottomNav('mine');
+  mountBottomNav();
   mountVerifySheet();
 
   let plItems = [];
@@ -304,7 +306,7 @@
     if (act === 'edit') {
       openVerifySheet(it, () => { refresh(); });
     } else if (act === 'detail') {
-      location.href = 'policy.html?id=' + encodeURIComponent(pid);
+      location.href = PFNavigation.detailURL(pid);
     }
   });
   document.getElementById('plMergeBody').addEventListener('click', (e) => {
@@ -323,7 +325,7 @@
       const pname = d.policy_name || it.pname || '';
       const dept = (d.source && d.source.department) || it.dept || '';
       const url = (d.source && d.source.official_url) || it.url || '';
-      const rec = it.noRecord ? vEnsureRecord(it.pid, pname, dept, url) : it;
+      const rec = (it.noRecord && vEnsureRecord(it.pid, pname, dept, url)) || it;
       return {
         pid: it.pid, pname: pname, dept: dept, url: url,
         region: d.region || '',
@@ -339,5 +341,6 @@
 
   refresh();
 </script>
+<script src="assets/pf-service-v3-page.js"></script>
 </body>
 </html>

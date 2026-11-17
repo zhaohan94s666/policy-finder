@@ -8,9 +8,11 @@
   <title>政策找人 · 本人权益发现</title>
   <link rel="stylesheet" href="assets/tcb.css">
 <link rel="stylesheet" href="assets/pf-services-tcb.css">
-  </head>
+    <script src="data/policies.js"></script>
+<script src="assets/pf-service-v3-activation.js"></script>
+  <link rel="stylesheet" href="assets/query-flow.css"><link rel="stylesheet" href="assets/structured-result.css"><script src="assets/query-fields.js"></script><script src="assets/structured-result.js"></script><link rel="stylesheet" href="assets/navigation.css"><script src="assets/navigation-policy.js"></script><link rel="stylesheet" href="assets/result-v1.css"><script src="assets/result-presentation.js"></script><script src="assets/policy-actions.js"></script><script src="assets/followup-service.js"></script><script src="assets/policy-batch.js"></script><script src="assets/semantic-result.js"></script><link rel="stylesheet" href="assets/ui-foundation.css"></head>
 <body>
-<div class="app">
+<div class="app" id="legacySelf">
   <div class="topbar"></div>
 
   <!-- 模式标识由 topbar 右侧「本人模式」承担；资格边界见页脚 footnote，不再重复 -->
@@ -54,17 +56,19 @@
   </div>
 </div>
 
-  <script src="data/policies.js"></script>
-<script src="assets/app.js"></script>
+<script src="assets/app.js"></script><script src="assets/followup-client.js"></script><script src="assets/query-snapshot.js"></script>
 <script src="assets/tcb-ui.js"></script>
 <script src="assets/pf-ns.js"></script>
 <script src="assets/pf-services.js"></script>
 <script>
-  renderTopbar('本人权益发现', 'index.html', '本人模式');
-  mountDemoBanner();
-  mountFlow(1);
-  mountRelationStrip();
-  mountBottomNav('discover');
+  if (new URLSearchParams(location.search).get('results') === '1') {
+  renderTopbar('政策匹配结果', PFQuerySnapshot.id?'query-history.html':'index.html', '本人模式');
+  if (!PFQuerySnapshot.id) {
+    mountDemoBanner();
+    mountFlow(1);
+    mountRelationStrip();
+  }
+  mountBottomNav();
 
   const session = store.read();
   // 从详情页「返回调整」带回来的政策 id（读完即从地址栏移除）
@@ -144,6 +148,8 @@
    * opts.scrollToResult true 时渲染后滚动到确认台
    */
   async function runMatch(opts) {
+    try { if (PFQuerySnapshot.id || await PFQuerySnapshot.legacyGate()) return; }
+    catch (error) { area.textContent = error.message; return; }
     opts = opts || {};
     const requestId = beginMatchRequest();
     // 注意：这里**不** await loadSiteContext()。
@@ -196,7 +202,7 @@
     // 记录归属与“我的”页面显示都会串回家庭成员（P1-2）。
     // 演示标记随真实查询成功一并清除（demo/demoBanner）：此前只清家庭路径
     // （discover.html:219），本人路径直达 self.html 查询后演示横幅仍显示（E046）。
-    store.write({ selfText: text, selfProfile: data.profile, lastQuery: 'self', demo: false, demoBanner: false });
+    store.write({ selfText: text, selfProfile: PFStructuredResult.retain(data.profile, saved.selfProfile), lastQuery: 'self', demo: false, demoBanner: false });
     // 横幅是页面加载时挂上去的，清掉标记后要重新对一次 DOM，
     // 否则它会一直留在页面上，把真实结果说成虚拟案例（与 discover.html:222 对称）。
     if (typeof mountDemoBanner === 'function') mountDemoBanner();
@@ -216,15 +222,10 @@
     // 局部刷新时锁定容器高度，保证替换前后文档总高度不变，避免跳顶
     if (isRefresh) area.style.minHeight = area.offsetHeight + 'px';
 
-    area.innerHTML =
-      renderSituationBoard(data.profile, data.scene_library, {
-        title: '第二步：确认 AI 的理解对不对',
-        optionalPreview: optionalPreview,
-        optionalExpanded: optionalExpanded,
-      }) +
-      renderResultCards(data, {
-        heading: '第三步：AI 发现 ' + (data.results || []).length + ' 项可能相关的公共服务权益',
-      });
+    await PFResultPresentation.prepare(data);
+    if (!isLatestMatchRequest(requestId)) return;
+    area.innerHTML = PFResultPresentation.render(data);
+    PFSemanticResult.mount(area, PFStructuredResult.retain(data.profile, saved.selfProfile));
 
     bindAll(data);
 
@@ -318,11 +319,11 @@
         // 进入详情前记住当前滚动位置与这条政策 id，返回时恢复
         saveListPosition(card.dataset.id);
         // svc 参数来自首页「政策解读 / 办理指引」intent，详情页据此定位区块
-        location.href = 'policy.html?id=' + encodeURIComponent(card.dataset.id) + (_svcParam ? '&svc=' + _svcParam : '');
+        location.href = PFNavigation.withParams(card.querySelector('.result-foot').href, {svc: _svcParam || null});
       };
-      card.addEventListener('click', go);
-      card.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('button, a, summary, details, input, textarea, select')) return;
+        go();
       });
     });
   }
@@ -428,7 +429,10 @@
   // 已有输入则自动跑一次，方便从详情页返回。
   // restorePosition 只在真的有返回记录时才恢复滚动；
   // 带 focus 参数时（从详情页「返回调整」过来）优先按区块定位。
-  if (session.selfText) {
+  if (PFQuerySnapshot.id) {
+    PFQuerySnapshot.open(area, 'self');
+    addEventListener('pageshow', event => { if (event.persisted) PFQuerySnapshot.open(area, 'self'); });
+  } else if (session.selfText) {
     runMatch({ restorePosition: !query('focus') }).then(() => { applyFocus(); applyServiceIntent(); });
   }
 
@@ -461,6 +465,8 @@
     }
     showToast('已按「' + h.label + '」进入，选一条权益查看');
   }
+}
 </script>
-</body>
+<script src="assets/pf-service-v3-page.js"></script>
+<script src="assets/query-fields.js"></script><script src="assets/query-ai.js"></script><script src="assets/query-flow.js"></script></body>
 </html>

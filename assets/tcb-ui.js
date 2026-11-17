@@ -229,33 +229,7 @@ function discoverRouteTarget() {
   return 'family.html';
 }
 
-function renderBottomNav(active) {
-  const icons = {
-    home: iconF('home'),
-    discover: iconF('compass'),
-    consult: iconF('headset'),
-    mine: iconF('user'),
-  };
-  const tabs = [
-    { key: 'home', label: '首页' },
-    { key: 'discover', label: '发现' },
-    { key: 'consult', label: '咨询' },
-    { key: 'mine', label: '我的' },
-  ];
-  return '<nav class="tabbar" aria-label="底部导航">'
-    + tabs.map(function (t) {
-      const isActive = t.key === active;
-      const disabled = !!t.disabled;
-      const attrs = 'type="button" class="tab-item' + (isActive ? ' is-active' : '')
-        + (disabled ? ' is-disabled' : '') + '"'
-        + ' data-tab="' + t.key + '"'
-        + (isActive ? ' aria-current="page"' : '')
-        + (disabled ? ' aria-disabled="true"' : '');
-      return '<button ' + attrs + '>' + icons[t.key]
-        + '<span>' + escapeHtml(t.label) + '</span></button>';
-    }).join('')
-    + '</nav>';
-}
+function renderBottomNav() { return PFNavigation.markup(); }
 
 /* --------------------------------------------------------------------------
  * 「发现」高亮意图（一次性，消费即清除）
@@ -283,50 +257,7 @@ function writeNavIntent(key) {
   } catch (e) { /* 存储不可用时静默降级，仅影响高亮不影响路由 */ }
 }
 
-function mountBottomNav(active) {
-  const app = document.querySelector('.app');
-  if (!app || app.querySelector('.tabbar')) return;
-  app.classList.add('has-tabbar');
-  // 落地页若带有「发现」点击意图，只把「发现」项渲染为选中；
-  // 视觉选中（visualActive）与页面分区（active）就此分离。
-  const intent = readNavIntent();
-  const visualActive = intent || active;
-  app.insertAdjacentHTML('beforeend', renderBottomNav(visualActive));
-  const root = app.querySelector('.tabbar');
-  if (!root) return;
-  root.addEventListener('click', function (e) {
-    const btn = e.target.closest('.tab-item');
-    if (!btn) return;
-    const key = btn.dataset.tab;
-    // 重复点击去重以「当前视觉选中项」为准：正常情况下视觉选中即页面
-    // 分区（visualActive === active，与原逻辑一致）；带「发现」意图高亮时
-    // （如无会话落在 family.html、发现高亮），点「首页」必须真正跳回
-    // index.html，不能被挂载参数 active='home' 的去重误拦。
-    // 「发现」同时覆盖家庭/本人两种结果页，去重判断必须优先于动态路由。
-    if (key === visualActive) return;
-    if (key === 'consult') {
-      writeNavIntent(null);
-      location.href = 'consult.html';
-      return;
-    }
-    if (key === 'discover') {
-      writeNavIntent('discover');
-      location.href = discoverRouteTarget();
-      return;
-    }
-    if (key === 'home') {
-      writeNavIntent(null);
-      location.href = 'index.html';
-    }
-    if (key === 'mine') {
-      writeNavIntent(null);
-      // 2026-10-29：我的 → 独立服务页（原 mine-sheet 弹层能力已迁入 services.html，
-      // 会话信息 / 重新评估家庭情况 / 为自己查找 / 重置本次查询 全部保留）
-      location.href = 'services.html';
-      return;
-    }
-  });
-}
+function mountBottomNav() { PFNavigation.mount(); }
 
 function consultOfficialUrl(value) {
   const raw = String(value || '').trim();

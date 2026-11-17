@@ -8,10 +8,13 @@
   <title>待核实清单 · 政策找人</title>
   <link rel="stylesheet" href="assets/tcb.css">
 <link rel="stylesheet" href="assets/pf-services-tcb.css">
-</head>
+  <script src="data/policies.js"></script>
+<script src="assets/pf-service-v3-activation.js"></script>
+<link rel="stylesheet" href="assets/navigation.css"><script src="assets/navigation-policy.js"></script><link rel="stylesheet" href="assets/ui-foundation.css"></head>
 <body>
 <div class="app">
   <div class="topbar"></div>
+  <div class="vf-actions"><a class="vf-btn is-primary" href="follow-up.html?view=list&amp;from=verify-list.html">管理本次查询的待核实事项</a></div>
 
   <section class="section">
     <p class="vf-ov-line" style="color:var(--muted);margin:0 0 10px;">把想进一步了解的政策收在一起，确认清楚再决定下一步。</p>
@@ -34,14 +37,13 @@
   </div>
 </div>
 
-  <script src="data/policies.js"></script>
 <script src="assets/app.js"></script>
 <script src="assets/tcb-ui.js"></script>
 <script src="assets/pf-ns.js"></script>
 <script src="assets/pf-services.js"></script>
 <script>
   renderTopbar('待核实清单', 'services.html', '我的服务');
-  mountBottomNav('mine');
+  mountBottomNav();
   mountVerifySheet();
 
   let vFilter = 'all';
@@ -165,7 +167,7 @@
     if (act === 'edit') {
       openVerifySheet(it, () => { refresh(); });
     } else if (act === 'detail') {
-      location.href = 'policy.html?id=' + encodeURIComponent(pid);
+      location.href = 'policy.html?id=' + encodeURIComponent(pid) + '&from=verify-list.html';
     } else if (act === 'records') {
       location.href = 'records.html';
     } else if (act === 'remove') {
@@ -175,7 +177,10 @@
         showToast('再点一次「确认移除」即可从清单移除');
       } else {
         it._armRemove = false;
-        vRemoveFromList(pid);
+        if (!vRemoveFromList(pid)) {
+          showToast('移除失败，请在已启用 SQLite 的预览中操作');
+          return;
+        }
         refresh();
         showToast('已从清单移除；核实记录保留');
       }
@@ -192,9 +197,7 @@
       const pname = d.policy_name || it.pname || '';
       const dept = (d.source && d.source.department) || it.dept || '';
       const url = (d.source && d.source.official_url) || it.url || '';
-      const rec = it.noRecord
-        ? vEnsureRecord(it.pid, pname, dept, url)
-        : it;
+      const rec = (it.noRecord && vEnsureRecord(it.pid, pname, dept, url)) || it;
       return {
         pid: it.pid, pname: pname, dept: dept, url: url,
         status: rec.status || 'pending', note: rec.note || '', next: rec.next || '',
@@ -206,5 +209,6 @@
 
   refresh();
 </script>
+<script src="assets/pf-service-v3-page.js"></script>
 </body>
 </html>

@@ -148,12 +148,12 @@
   function goFamilyEntry() {
     const prev = store.read().target;
     store.write({ target: (prev === 'family' ? 'family' : 'parents'), demo: false, demoBanner: false });
-    location.href = 'family.html';
+    location.href = 'find.html';
   }
 
   function goSelfEntry() {
     store.write({ target: 'self', demo: false, demoBanner: false });
-    location.href = 'self.html';
+    location.href = 'analysis.html?self=1';
   }
 
   /* ============================================================
@@ -399,10 +399,10 @@
     if (selfLink) selfLink.addEventListener('click', goSelfEntry);
 
     const card = $('discoverCard');
-    if (card) card.addEventListener('click', goDiscoverOrPrompt);
+    if (card) card.addEventListener('click', goFamilyEntry);
 
     const tileMatch = $('tileMatch');
-    if (tileMatch) tileMatch.addEventListener('click', goDiscoverOrPrompt);
+    if (tileMatch) tileMatch.addEventListener('click', goFamilyEntry);
 
     // 解读 / 办理指引：送到发现页挑一条看详情（intent 只影响落地提示）
     document.querySelectorAll('.hg-tile[data-svc]').forEach((btn) => {

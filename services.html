@@ -8,6 +8,7 @@
   <title>我的服务 · 政策找人</title>
   <link rel="stylesheet" href="assets/tcb.css">
 <link rel="stylesheet" href="assets/pf-services-tcb.css">
+<link rel="stylesheet" href="assets/mine-business.css">
 <style>
   .sv-row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 10px 0; border-bottom: 1px dashed var(--line-soft); }
   .sv-row:last-child { border-bottom: 0; }
@@ -26,10 +27,13 @@
   .about-rows .k { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
   .about-rows .v { display: block; font-size: 13.5px; line-height: 1.7; color: var(--ink-2); }
 </style>
-</head>
+  <script src="data/policies.js"></script>
+<script src="assets/pf-service-v3-activation.js"></script>
+<link rel="stylesheet" href="assets/navigation.css"><script src="assets/navigation-policy.js"></script><link rel="stylesheet" href="assets/ui-foundation.css"><link rel="stylesheet" href="assets/family-records-polish.css"></head>
 <body>
 <div class="app">
   <div class="topbar"></div>
+  <div class="vf-actions"><a class="vf-btn" href="follow-up.html?view=list&amp;from=services.html">本次查询的待核实清单</a><a class="vf-btn" href="follow-up.html?view=saved">已保存政策</a><a class="vf-btn" href="follow-up.html?view=plans">我的少跑腿计划</a><a class="vf-btn" href="follow-up.html?view=logs">咨询与办理记录</a></div>
 
   <section class="section">
     <div class="card">
@@ -94,6 +98,7 @@
       <p class="vf-bar-cap" id="sessExtra"></p>
       <div id="queryNowBox" style="margin-top:10px;"></div>
       <div class="vf-actions" style="margin-top:8px;">
+        <a class="vf-btn" href="query-history.html">查询历史</a>
         <button type="button" class="vf-btn" id="sessDiscover">重新进入发现页</button>
       </div>
       <div class="vf-actions">
@@ -140,16 +145,91 @@
   </div>
 </div>
 
-  <script src="data/policies.js"></script>
-<script src="assets/app.js"></script>
+<script src="assets/app.js"></script><script src="assets/followup-client.js"></script>
 <script src="assets/tcb-ui.js"></script>
 <script src="assets/pf-ns.js"></script>
 <script src="assets/pf-services.js"></script>
+<script src="assets/pf-service-state.js"></script>
+<script src="assets/pf-service-storage.js"></script>
+<script src="assets/pf-service-identity.js"></script>
+<script src="assets/pf-service-v3-readonly.js"></script>
+<script src="assets/mine-business.js"></script>
 <script>
   renderTopbar('我的服务', 'index.html', '我的');
-  mountBottomNav('mine');
+  mountBottomNav();
 
-  function renderServices() {
+  let currentMember;
+  const memberURL = (url, member = currentMember) => PFNavigation.withParams(url, {member});
+  const requestedMember = new URLSearchParams(location.search).get('member');
+  if (requestedMember) {
+    for (const entry of document.querySelectorAll('a[href^="follow-up.html"],a[href^="query-history.html"]')) {
+      entry.href = memberURL(entry.getAttribute('href'), requestedMember);
+    }
+  }
+  const memberScope = PFBusiness.enabled().then(async enabled => {
+    if (!enabled) return null;
+    const members = await PFBusiness.members();
+    const preferred = new URLSearchParams(location.search).get('member');
+    currentMember = members.find(row => row.id === preferred)?.id;
+    const label = document.createElement('label');
+    label.textContent = '查看哪位成员的记录？ ';
+    const select = document.createElement('select');
+    select.id = 'mineMember';
+    select.replaceChildren(new Option('请选择成员', ''), ...members.map(row =>
+      new Option(row.name + ' · ' + row.relation + (row.archivedAt ? '（已归档）' : ''), row.id)));
+    select.value = currentMember || '';
+    select.onchange = () => location.assign(memberURL('services.html', select.value));
+    label.append(select);
+    document.getElementById('vfOvLine').before(label);
+    for (const entry of document.querySelectorAll('a[href^="follow-up.html"],a[href^="query-history.html"]')) {
+      entry.href = memberURL(PFNavigation.withParams(entry.getAttribute('href'), {from:PFNavigation.current()}));
+    }
+    return {members, invalid:preferred !== null && !currentMember};
+  });
+
+  async function openRecord(view, legacy) {
+    try {
+      location.assign(await memberScope ?
+        memberURL(PFNavigation.withParams('follow-up.html', {view, from:PFNavigation.current()})) : legacy);
+    } catch (error) { showToast(error.message); }
+  }
+
+  async function renderServices() {
+    const v3=PFV3ReadOnly.snapshot();
+    if(v3){
+      const line=document.getElementById('vfOvLine');line.hidden=false;
+      document.getElementById('vfOvEmpty').hidden=true;
+      document.getElementById('vfOvBarWrap').hidden=true;
+      document.getElementById('vfOvCap').hidden=true;
+      if(!v3.ok){line.textContent='个人记录暂不可读取：'+v3.error.code;['entListD','entPlanD','entRecD'].forEach(id=>document.getElementById(id).textContent='请先核对记录');return;}
+      const total=v3.data.progress.total;
+      line.textContent=total?'当前受益人已选 '+total+' 项政策；以下均为个人记录。':'当前受益人尚未选择政策。';
+      document.getElementById('entListD').textContent=total+' 项已选政策';
+      document.getElementById('entPlanD').textContent=total?'查看当前行动建议':'选择政策后可安排';
+      document.getElementById('entRecD').textContent=v3.data.historyCount+' 条个人历史事件';
+      return;
+    }
+    try {
+      const scope=await memberScope;
+      if(scope){
+        PFMine.render(scope, currentMember);
+        if (!currentMember) {
+          return;
+        }
+        const data=await PFBusiness.overview(currentMember);
+        PFMine.render(scope, currentMember, data);
+        const plans=Object.values(data.plans);
+        const next=plans.find(row=>row.status==='active') || plans[0];
+        if (next) {
+          const detailed=await PFBusiness.plan(next.id,currentMember).catch(()=>null);
+          if (detailed) PFMine.render(scope,currentMember,{...data,selectedPlan:detailed.plans[next.id]});
+        }
+        return;
+      }
+    }catch(error){
+      const line=document.getElementById('vfOvLine');line.hidden=false;line.textContent='后续记录暂不可读取：'+error.message;
+      return;
+    }
     const items = vListRecords();
     const total = items.length;
     const verified = items.filter((it) => VERIFIED_SET[it.status]).length;
@@ -180,6 +260,10 @@
   }
 
   function renderSession() {
+    const v3=PFV3ReadOnly.snapshot();
+    if(v3){document.getElementById('sessLine').textContent=v3.ok
+      ? '当前家庭：'+(v3.data.household.displayLabel||'家庭')+' · 受益人：'+(v3.data.beneficiary.relationLabel||v3.data.beneficiary.displayLabel||'受益人')
+      : '家庭记录暂不可读取：'+v3.error.code;document.getElementById('sessExtra').textContent='查询输入与个人计划分别保存。';return;}
     const d = mineSessionLines();
     document.getElementById('sessLine').innerHTML =
       '<b>' + escapeHtml(d.mode) + '</b> · ' + escapeHtml(d.relation) + (d.extra ? ' · ' + escapeHtml(d.extra) : '');
@@ -189,8 +273,15 @@
   /* ---- 本次查询卡（自 mine.html 迁入）：显示当前模式的查询内容，支持只清当前模式 ----
      与「重置本次查询」（store.clear，上方按钮）语义不同：清空只影响当前模式的文本与画像，
      不碰收藏、核实记录、准备清单，也不清另一模式留存的查询数据。 */
-  function paintQueryNow() {
+  async function paintQueryNow() {
     const box = document.getElementById('queryNowBox');
+    if(PFV3ReadOnly.active()){box.textContent='查询输入请到发现页查看；本页个人计划以当前 schema 3 记录为准。';return;}
+    try {
+      if (await PFBusiness.enabled()) {
+        box.textContent = '按家庭成员查看已提交的查询、版本和保存的政策结果。';
+        return;
+      }
+    } catch (error) { box.textContent = error.message; return; }
     const s = store.read();
     const mode = (typeof activeQueryMode === 'function') ? activeQueryMode() : 'family';
     const selfActive = mode === 'self';
@@ -208,7 +299,10 @@
       + '<p class="vf-bar-cap" style="margin:4px 0 8px;">' + escapeHtml(qtext || '') + '</p>'
       + '<div class="vf-actions"><a class="vf-btn" href="' + backHref + '">回到发现结果</a>'
       + '<button type="button" class="vf-btn is-danger-text" id="qNowClear">清空本次查询</button></div>';
-    document.getElementById('qNowClear').addEventListener('click', () => {
+    document.getElementById('qNowClear').addEventListener('click', async () => {
+      try {
+        if (await memberScope) { location.href = memberURL('query-history.html'); return; }
+      } catch (error) { showToast(error.message); return; }
       if (selfActive) {
         store.write({ selfProfile: {}, selfText: '' });
         if (s.text) store.write({ lastQuery: 'family' });
@@ -221,9 +315,9 @@
     });
   }
 
-  document.getElementById('entList').addEventListener('click', () => { location.href = 'verify-list.html'; });
-  document.getElementById('entPlan').addEventListener('click', () => { location.href = 'plan.html'; });
-  document.getElementById('entRecords').addEventListener('click', () => { location.href = 'records.html'; });
+  document.getElementById('entList').addEventListener('click', () => openRecord('list', 'verify-list.html'));
+  document.getElementById('entPlan').addEventListener('click', () => openRecord('plans', 'plan.html'));
+  document.getElementById('entRecords').addEventListener('click', () => openRecord('logs', 'records.html'));
   document.getElementById('entFamily').addEventListener('click', () => { location.href = 'family.html'; });
   document.getElementById('entConsult').addEventListener('click', () => { location.href = 'consult.html'; });
   document.getElementById('sessFamily').addEventListener('click', () => {
@@ -236,7 +330,11 @@
     location.href = 'self.html';
   });
   const resetBtn = document.getElementById('sessReset');
-  resetBtn.addEventListener('click', () => {
+  resetBtn.addEventListener('click', async () => {
+    try {
+      if (await memberScope) { location.href = memberURL('query-history.html'); return; }
+    } catch (error) { showToast(error.message); return; }
+    if(PFV3ReadOnly.active()){showToast('当前模式请在少跑腿计划中管理个人记录');return;}
     if (resetBtn.dataset.armed !== '1') {
       resetBtn.dataset.armed = '1';
       resetBtn.textContent = '确认重置？再次点击执行';
@@ -249,16 +347,31 @@
   });
 
 
-  /* ---- 我的收藏：读写统一走 PFServices 公共接口（pf_saved_b，与 A 版 pf_saved 隔离） ---- */
-  function readFav() {
-    return (window.PFServices && PFServices.readFavorites) ? PFServices.readFavorites() : [];
-  }
-  function writeFav(arr) {
-    return !!(window.PFServices && PFServices.writeFavorites) && PFServices.writeFavorites(arr);
-  }
-  function paintFamily() {
+  async function paintFamily() {
     const box = document.getElementById('famCells');
     const note = document.getElementById('famNote');
+    const v3=PFV3ReadOnly.snapshot();
+    if(v3){
+      box.textContent='';
+      if(!v3.ok){note.textContent='家庭成员暂不可读取：'+v3.error.code;return;}
+      v3.data.members.forEach(function(m){const cell=document.createElement('div');cell.className='sv-cell';const name=document.createElement('strong');name.textContent=m.relationLabel||m.displayLabel||'成员';cell.append(name);box.append(cell);});
+      note.textContent='显示当前家庭的稳定成员身份；计划记录按成员分别保存。';return;
+    }
+    try {
+      const scope = await memberScope;
+      if (scope) {
+        box.replaceChildren(...scope.members.map(row => {
+          const link = document.createElement('a');
+          link.className = 'sv-cell';
+          link.href = memberURL('services.html', row.id);
+          link.textContent = row.name + ' · ' + row.relation;
+          if (row.id === currentMember) link.setAttribute('aria-current', 'true');
+          return link;
+        }));
+        note.textContent = '选择成员后，查看该成员的计划、收藏和记录。';
+        return;
+      }
+    } catch (error) { note.textContent = error.message; return; }
     const s = (typeof store !== 'undefined' && store.read) ? store.read() : {};
     const mode = (typeof activeQueryMode === 'function') ? activeQueryMode() : 'family';
     const demo = !!s.demo;
@@ -296,22 +409,46 @@
       : '还没有建立家庭画像。选择帮谁查、确认查询关系后，这里会显示家庭成员。';
   }
 
-  /* ---- 我的收藏 ---- */
-  function paintFav() {
-    const arr = readFav();
+  let favoriteMemberId, favoriteRows = [], favoriteVersion = 0;
+  async function paintFav() {
+    const version = ++favoriteVersion;
     const box = document.getElementById('favList');
     const empty = document.getElementById('favEmpty');
-    if (empty) empty.hidden = arr.length > 0;
-    box.innerHTML = arr.map((f) => '<div class="sv-row" data-id="' + escapeHtml(f.id) + '">'
-      + '<span class="n">' + escapeHtml(f.name || f.id)
-      + '<small>' + escapeHtml(f.dept || '责任部门未标注') + '</small></span>'
-      + '<a href="policy.html?id=' + encodeURIComponent(f.id) + '">详情</a>'
-      + '<button type="button" data-act="unfav" data-id="' + escapeHtml(f.id) + '">取消收藏</button>'
-      + '</div>').join('');
+    try {
+      const enabled = !!await memberScope;
+      if (enabled && !currentMember) {
+        box.textContent = '请先选择收藏所属的家庭成员。';
+        empty.hidden = true;
+        return;
+      }
+      const result = enabled ? await PFBusiness.favorites(currentMember) : null;
+      if (version !== favoriteVersion) return;
+      if (!enabled && PFV3ReadOnly.active()) {
+        box.textContent='当前个人计划不使用旧版收藏数据。';
+        empty.hidden=true;
+        return;
+      }
+      favoriteRows = result?.favorites || PFServices.readFavorites();
+      favoriteMemberId = result?.member.id;
+      empty.hidden = favoriteRows.length > 0;
+      empty.textContent = enabled ? '当前成员还没有收藏政策。' : '没有可查看的旧收藏。';
+      const writable = enabled && !result.member.archivedAt;
+      box.innerHTML = favoriteRows.map((f, index) => '<div class="sv-row" data-id="' + escapeHtml(f.id) + '">'
+        + '<span class="n">' + escapeHtml(f.name || f.id)
+        + '<small>' + escapeHtml(f.dept || '责任部门未标注') + '</small></span>'
+        + '<a href="' + escapeHtml(PFNavigation.withParams('policy.html', {id:f.id,member:favoriteMemberId,from:PFNavigation.current()})) + '">详情</a>'
+        + (writable ? '<button type="button" data-act="unfav" data-index="' + index + '">取消收藏</button>' : '')
+        + '</div>').join('');
+    } catch (error) {
+      if (version !== favoriteVersion) return;
+      box.textContent = '收藏暂不可读取：' + error.message;
+      empty.hidden = true;
+    }
   }
 
   /* ---- 本次查询：当前对象 / 模式 / 匹配状态 ---- */
   function paintSessionState() {
+    if(PFV3ReadOnly.active()){document.getElementById('sessExtra').textContent='个人计划从当前受益人的统一记录读取；发现页的查询输入不代表计划进度。';return;}
     const s = (typeof store !== 'undefined' && store.read) ? store.read() : {};
     const has = (typeof validLastMatch === 'function') ? validLastMatch(s) : !!(s.text || s.selfText);
     const extra = document.getElementById('sessExtra');
@@ -334,16 +471,22 @@
   document.getElementById('sessDiscover').addEventListener('click', () => {
     location.href = (typeof discoverRouteTarget === 'function') ? discoverRouteTarget() : 'discover.html';
   });
-  document.getElementById('favList').addEventListener('click', (e) => {
+  document.getElementById('favList').addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-act="unfav"]');
-    if (!btn) return;
-    const id = btn.dataset.id;
-    // 写失败（隐私模式/配额不足）时如实提示失败，不更新列表、不报成功
-    if (writeFav(readFav().filter((x) => x.id !== id))) {
-      paintFav();
+    if (!btn || btn.disabled) return;
+    const row = favoriteRows[Number(btn.dataset.index)];
+    const memberId = favoriteMemberId;
+    btn.disabled = true;
+    try {
+      await PFBusiness.command('favorite', {memberId, policyId:row.id, region:row.region,
+        saved:false, expectedRevision:row.revision});
       showToast('已取消收藏');
-    } else {
-      showToast('取消收藏失败：浏览器存储不可用或已满，请稍后重试');
+      await paintFav();
+    } catch (error) {
+      showToast('取消收藏未确认：' + error.message);
+      if (error.code === 'revision_conflict') await paintFav();
+    } finally {
+      if (btn.isConnected && memberId === favoriteMemberId) btn.disabled = false;
     }
   });
 
@@ -361,7 +504,7 @@
   });
 
   // 从详情页等处按返回回到本页时（BFCache 命中），收藏与查询展示都要是新的
-  window.addEventListener('pageshow', () => { paintFav(); paintQueryNow(); });
+  window.addEventListener('pageshow', event => { if(event.persisted){ paintFav(); paintQueryNow(); renderServices(); } if(PFV3ReadOnly.active()){renderSession();paintFamily();} });
 </script>
 </body>
 </html>
